@@ -63,7 +63,7 @@ Repository  -> Settings -> Secrets & variables -> `CODECOV_TOKEN`, `DOCKERHUB_TO
 
 ```sh
 $> mctl -h
-golang-cli project template demo application
+mctl - git repositories mesh management
 
 Usage:
   mctl [flags]

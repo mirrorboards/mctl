@@ -9,7 +9,7 @@ import (
 func newRootCmd(version string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mctl",
-		Short: "golang-cli project template demo application",
+		Short: "mctl - git repositories mesh management",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},
