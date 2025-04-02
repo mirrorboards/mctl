@@ -1,0 +1,148 @@
+version: 2
+
+env:
+  - GO111MODULE=on
+  - CGO_ENABLED=0
+
+before:
+  hooks:
+    - ./scripts/manpages.sh
+    - ./scripts/completions.sh
+
+builds:
+  -
+    binary: mctl
+    ldflags: -s -w -X main.version={{ .Version }}
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  -
+    builds:
+      - mctl
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+nfpms:
+  - builds:
+      - mctl
+    vendor: mirrorboards
+    homepage:  https://github.com/mirrorboards/mctl
+    maintainer: "lunacrafts <lclabs@protonmail.com>"
+    description: "A CLI tool for managing Git mirrors"
+    license: GPL-3.0
+    formats:
+      - apk
+      - deb
+      - rpm
+    bindir: /usr/bin
+    contents:
+      - src: ./manpages/mctl.1.gz
+        dst: /usr/share/man/man1/mctl.1.gz
+        file_info:
+          mode: 0644
+      - src: ./completions/mctl.bash
+        dst: /usr/share/bash-completion/completions/mctl
+        file_info:
+          mode: 0644
+      - src: ./completions/mctl.fish
+        dst: /usr/share/fish/vendor_completions.d/mctl.fish
+        file_info:
+          mode: 0644
+      - src: ./completions/mctl.zsh
+        dst:  /usr/share/zsh/vendor-completions/_mctl
+        file_info:
+          mode: 0644
+
+dockers:
+- image_templates:
+  - 'mirrorboards/{{.ProjectName}}:{{ .Tag }}-amd64'
+  - 'ghcr.io/mirrorboards/{{.ProjectName}}:{{ .Tag }}-amd64'
+  dockerfile: Dockerfile
+  use: buildx
+  build_flag_templates:
+  - "--pull"
+  - "--label=io.artifacthub.package.readme-url=https://raw.githubusercontent.com/mirrorboards/mctl/master/README.md"
+  - "--label=io.artifacthub.package.maintainers=[{\"name\":\"Tom Morelly\",\"email\":\"tommorelly@gmail.com\"}]"
+  - "--label=io.artifacthub.package.license=MIT"
+  - "--label=org.opencontainers.image.description=A general purpose golang CLI template for Github and Gitlab"
+  - "--label=org.opencontainers.image.created={{.Date}}"
+  - "--label=org.opencontainers.image.name={{.ProjectName}}"
+  - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+  - "--label=org.opencontainers.image.version={{.Version}}"
+  - "--label=org.opencontainers.image.source={{.GitURL}}"
+  - "--platform=linux/amd64"
+- image_templates:
+  - 'mirrorboards/{{.ProjectName}}:{{ .Tag }}-arm64'
+  - 'ghcr.io/mirrorboards/{{.ProjectName}}:{{ .Tag }}-arm64'
+  dockerfile:  Dockerfile
+  use: buildx
+  build_flag_templates:
+  - "--pull"
+  - "--label=io.artifacthub.package.readme-url=https://raw.githubusercontent.com/mirrorboards/mctl/master/README.md"
+  - "--label=io.artifacthub.package.logo-url=https://raw.githubusercontent.com/mirrorboards/mctl/master/www/static/images/logo.png"
+  - "--label=io.artifacthub.package.maintainers=[{\"name\":\"Tom Morelly\",\"email\":\"tommorelly@gmail.com\"}]"
+  - "--label=io.artifacthub.package.license=MIT"
+  - "--label=org.opencontainers.image.description=A general purpose golang CLI template for Github and Gitlab"
+  - "--label=org.opencontainers.image.created={{.Date}}"
+  - "--label=org.opencontainers.image.name={{.ProjectName}}"
+  - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+  - "--label=org.opencontainers.image.version={{.Version}}"
+  - "--label=org.opencontainers.image.source={{.GitURL}}"
+  - "--platform=linux/arm64"
+  goarch: arm64
+
+docker_manifests:
+- name_template: 'mirrorboards/{{.ProjectName}}:{{ .Tag }}'
+  image_templates:
+  - 'mirrorboards/{{.ProjectName}}:{{ .Tag }}-amd64'
+  - 'mirrorboards/{{.ProjectName}}:{{ .Tag }}-arm64'
+- name_template: 'ghcr.io/mirrorboards/{{.ProjectName}}:{{ .Tag }}'
+  image_templates:
+  - 'ghcr.io/mirrorboards/{{.ProjectName}}:{{ .Tag }}-amd64'
+  - 'ghcr.io/mirrorboards/{{.ProjectName}}:{{ .Tag }}-arm64'
+- name_template: 'mirrorboards/{{.ProjectName}}:latest'
+  image_templates:
+  - 'mirrorboards/{{.ProjectName}}:{{ .Tag }}-amd64'
+  - 'mirrorboards/{{.ProjectName}}:{{ .Tag }}-arm64'
+- name_template: 'ghcr.io/mirrorboards/{{.ProjectName}}:latest'
+  image_templates:
+  - 'ghcr.io/mirrorboards/{{.ProjectName}}:{{ .Tag }}-amd64'
+  - 'ghcr.io/mirrorboards/{{.ProjectName}}:{{ .Tag }}-arm64'
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+    - '^test:'
+    - '^chore'
+    - 'merge conflict'
+    - Merge pull request
+    - Merge remote-tracking branch
+    - Merge branch
+    - go mod tidy
+  groups:
+    - title: Dependency updates
+      regexp: '^.*?(feat|fix)\(deps\)!?:.+$'
+      order: 300
+    - title: 'New Features'
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 100
+    - title: 'Bug fixes'
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 200
+    - title: 'Documentation updates'
+      regexp: ^.*?doc(\([[:word:]]+\))??!?:.+$
+      order: 400
+    - title: Other work
+      order: 9999
