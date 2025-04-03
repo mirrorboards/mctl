@@ -5,6 +5,43 @@ import (
 	"testing"
 )
 
+func TestExtractOrgName(t *testing.T) {
+	testCases := []struct {
+		url      string
+		expected string
+	}{
+		{
+			url:      "git@github.com:LFDT-Lockness/cggmp21.git",
+			expected: "LFDT-Lockness",
+		},
+		{
+			url:      "https://github.com/LFDT-Lockness/cggmp21.git",
+			expected: "LFDT-Lockness",
+		},
+		{
+			url:      "git@gitlab.com:LFDT-Lockness/cggmp21.git",
+			expected: "LFDT-Lockness",
+		},
+		{
+			url:      "https://gitlab.com/LFDT-Lockness/cggmp21",
+			expected: "LFDT-Lockness",
+		},
+		{
+			url:      "invalid-url",
+			expected: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.url, func(t *testing.T) {
+			result := extractOrgName(tc.url)
+			if result != tc.expected {
+				t.Errorf("extractOrgName(%s) = %s, expected %s", tc.url, result, tc.expected)
+			}
+		})
+	}
+}
+
 func TestAddCmd(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "mctl-add-test")
@@ -56,6 +93,10 @@ func TestAddCmd(t *testing.T) {
 		t.Errorf("Default flat should be false")
 	}
 
+	if addNoOrg {
+		t.Errorf("Default no-org should be false")
+	}
+
 	// Test with custom flags
 	if err := cmd.ParseFlags([]string{"--path", "custom/path", "--name", "custom-name", "--flat"}); err != nil {
 		t.Fatalf("Error parsing flags: %v", err)
@@ -71,5 +112,18 @@ func TestAddCmd(t *testing.T) {
 
 	if !addFlat {
 		t.Errorf("Flat should be true")
+	}
+
+	if addNoOrg {
+		t.Errorf("No-org should be false when not specified")
+	}
+
+	// Test with no-org flag
+	if err := cmd.ParseFlags([]string{"--no-org"}); err != nil {
+		t.Fatalf("Error parsing flags: %v", err)
+	}
+
+	if !addNoOrg {
+		t.Errorf("No-org should be true when specified")
 	}
 }

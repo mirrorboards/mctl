@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/mirrorboards/mctl/pkg/config"
 	"github.com/mirrorboards/mctl/pkg/git"
@@ -11,10 +13,34 @@ import (
 )
 
 var (
-	addPath string
-	addName string
-	addFlat bool
+	addPath  string
+	addName  string
+	addFlat  bool
+	addNoOrg bool
 )
+
+// extractOrgName extracts the organization name from a Git URL
+// e.g., git@github.com:LFDT-Lockness/cggmp21.git -> LFDT-Lockness
+func extractOrgName(gitURL string) string {
+	// Remove .git extension if present
+	gitURL = strings.TrimSuffix(gitURL, ".git")
+
+	// Handle SSH URLs (git@github.com:org/repo)
+	sshRegex := regexp.MustCompile(`git@[^:]+:([^/]+)/`)
+	matches := sshRegex.FindStringSubmatch(gitURL)
+	if len(matches) > 1 {
+		return matches[1]
+	}
+
+	// Handle HTTPS URLs (https://github.com/org/repo)
+	httpsRegex := regexp.MustCompile(`https?://[^/]+/([^/]+)/`)
+	matches = httpsRegex.FindStringSubmatch(gitURL)
+	if len(matches) > 1 {
+		return matches[1]
+	}
+
+	return ""
+}
 
 func newAddCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -37,19 +63,37 @@ func newAddCmd() *cobra.Command {
 				repoName = config.ExtractRepoName(gitURL)
 			}
 
-			// For flat mode with name, we adjust the path to include the name
-			if addFlat && addName != "" {
-				// In flat mode with a name, we use the name as directory
-				if targetPath == "." {
-					// If we're in current directory, use just the name
-					targetPath = addName
-				} else {
-					// Otherwise, join the path with the name
-					targetPath = filepath.Join(targetPath, addName)
+			// Default behavior is to use organization structure unless --no-org is specified
+			if !addNoOrg {
+				orgName := extractOrgName(gitURL)
+				if orgName == "" {
+					return fmt.Errorf("could not extract organization name from URL: %s", gitURL)
 				}
-				// Record the name as empty since we're treating it as part of the path
-				addName = ""
-				repoName = ""
+
+				// Update the path to use the org name
+				if targetPath == "." {
+					targetPath = orgName
+				} else {
+					targetPath = filepath.Join(targetPath, orgName)
+				}
+
+				// Keep the repo name for the subdirectory
+				addFlat = false
+			} else {
+				// For flat mode with name, we adjust the path to include the name
+				if addFlat && addName != "" {
+					// In flat mode with a name, we use the name as directory
+					if targetPath == "." {
+						// If we're in current directory, use just the name
+						targetPath = addName
+					} else {
+						// Otherwise, join the path with the name
+						targetPath = filepath.Join(targetPath, addName)
+					}
+					// Record the name as empty since we're treating it as part of the path
+					addName = ""
+					repoName = ""
+				}
 			}
 
 			// Determine where to clone
@@ -80,6 +124,12 @@ func newAddCmd() *cobra.Command {
 				if targetName == "" {
 					targetName = repoName
 				}
+
+				// Check if the target directory exists and contains a git repository
+				gitDir := filepath.Join(targetPath, targetName, ".git")
+				if _, err := os.Stat(gitDir); err == nil {
+					return fmt.Errorf("repository already exists at %s/%s", targetPath, targetName)
+				}
 			}
 
 			// Add repository to the configuration with appropriate name
@@ -109,6 +159,7 @@ func newAddCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&addPath, "path", "p", ".", "Path where to clone the repository")
 	cmd.Flags().StringVarP(&addName, "name", "n", "", "Custom name for the repository (defaults to repo name)")
 	cmd.Flags().BoolVar(&addFlat, "flat", false, "Clone directly into the path instead of creating a subdirectory")
+	cmd.Flags().BoolVar(&addNoOrg, "no-org", false, "Don't use organization name as directory structure (legacy behavior)")
 
 	return cmd
 }
