@@ -2,15 +2,46 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/mirrorboards/mctl/pkg/config"
 	"github.com/spf13/cobra"
+)
+
+// RepoStatus represents the status of a repository for JSON output
+type RepoStatus struct {
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	Path      string   `json:"path"`
+	URL       string   `json:"url"`
+	Branch    string   `json:"branch,omitempty"`
+	Exists    bool     `json:"exists"`
+	IsDirty   bool     `json:"is_dirty"`
+	Staged    []string `json:"staged,omitempty"`
+	Modified  []string `json:"modified,omitempty"`
+	Untracked []string `json:"untracked,omitempty"`
+}
+
+// StatusSummary represents the summary of all repositories for JSON output
+type StatusSummary struct {
+	TotalRepos    int          `json:"total_repos"`
+	ExistingRepos int          `json:"existing_repos"`
+	MissingRepos  int          `json:"missing_repos"`
+	DirtyRepos    int          `json:"dirty_repos"`
+	Repositories  []RepoStatus `json:"repositories"`
+	Timestamp     string       `json:"timestamp"`
+}
+
+var (
+	statusFormat string
+	statusRepos  []string
 )
 
 func newStatusCmd() *cobra.Command {
@@ -29,26 +60,37 @@ func newStatusCmd() *cobra.Command {
 				return nil
 			}
 
-			// Define colors
-			titleColor := color.New(color.FgHiWhite, color.Bold)
-			repoNameColor := color.New(color.FgHiCyan, color.Bold)
-			pathColor := color.New(color.FgHiBlue)
-			cleanColor := color.New(color.FgHiGreen)
-			dirtyColor := color.New(color.FgHiRed)
-			branchColor := color.New(color.FgHiYellow)
-			missingColor := color.New(color.FgHiMagenta)
-			changedFileColor := color.New(color.FgHiRed)
-			stagedFileColor := color.New(color.FgHiGreen)
-			untrackedFileColor := color.New(color.FgHiCyan)
-
-			// Print header
-			titleColor.Println("\n✨ MIRROR REPOSITORIES STATUS ✨")
-			fmt.Println(strings.Repeat("─", 60))
-
 			totalRepos := len(repos)
 			existingRepos := 0
 			dirtyRepos := 0
 			missingRepos := 0
+
+			// For JSON output
+			var statusSummary StatusSummary
+			statusSummary.TotalRepos = totalRepos
+			statusSummary.Repositories = make([]RepoStatus, 0, totalRepos)
+			statusSummary.Timestamp = time.Now().Format(time.RFC3339)
+
+			// For text output
+			var titleColor, repoNameColor, pathColor, cleanColor, dirtyColor, branchColor, missingColor, changedFileColor, stagedFileColor, untrackedFileColor *color.Color
+
+			if statusFormat == "text" {
+				// Define colors for text output
+				titleColor = color.New(color.FgHiWhite, color.Bold)
+				repoNameColor = color.New(color.FgHiCyan, color.Bold)
+				pathColor = color.New(color.FgHiBlue)
+				cleanColor = color.New(color.FgHiGreen)
+				dirtyColor = color.New(color.FgHiRed)
+				branchColor = color.New(color.FgHiYellow)
+				missingColor = color.New(color.FgHiMagenta)
+				changedFileColor = color.New(color.FgHiRed)
+				stagedFileColor = color.New(color.FgHiGreen)
+				untrackedFileColor = color.New(color.FgHiCyan)
+
+				// Print header
+				titleColor.Println("\n✨ MIRROR REPOSITORIES STATUS ✨")
+				fmt.Println(strings.Repeat("─", 60))
+			}
 
 			for _, repo := range repos {
 				var repoPath string
@@ -61,9 +103,34 @@ func newStatusCmd() *cobra.Command {
 					repoPath = filepath.Join(repo.Path, repo.Name)
 				}
 
-				// Display repository name and path
-				repoNameColor.Printf("• %s ", filepath.Base(repoPath))
-				pathColor.Printf("(%s)\n", repoPath)
+				// Skip if not in the specified repos list
+				if len(statusRepos) > 0 {
+					found := false
+					for _, r := range statusRepos {
+						if repo.ID == r || repo.Name == r {
+							found = true
+							break
+						}
+					}
+					if !found {
+						continue
+					}
+				}
+
+				// Create repo status for JSON output
+				repoStatus := RepoStatus{
+					ID:   repo.ID,
+					Name: repo.Name,
+					Path: repoPath,
+					URL:  repo.URL,
+				}
+
+				if statusFormat == "text" {
+					// Display repository name, ID, and path
+					repoNameColor.Printf("• %s ", filepath.Base(repoPath))
+					pathColor.Printf("(%s)\n", repoPath)
+					fmt.Printf("  ID: %s\n", repo.ID)
+				}
 
 				// Check if the repository exists
 				gitDir := filepath.Join(repoPath, ".git")
@@ -87,18 +154,29 @@ func newStatusCmd() *cobra.Command {
 
 				if !isRepo {
 					// Repository doesn't exist
-					missingColor.Println("  Status: Not cloned yet")
 					missingRepos++
-					fmt.Println(strings.Repeat("─", 60))
+					repoStatus.Exists = false
+
+					if statusFormat == "text" {
+						missingColor.Println("  Status: Not cloned yet")
+						fmt.Println(strings.Repeat("─", 60))
+					}
+
+					statusSummary.Repositories = append(statusSummary.Repositories, repoStatus)
 					continue
 				}
+
+				repoStatus.Exists = true
 
 				existingRepos++
 
 				// Get current branch
 				branch, err := getGitBranch(repoPath)
 				if err == nil {
-					branchColor.Printf("  Branch: %s\n", branch)
+					repoStatus.Branch = branch
+					if statusFormat == "text" {
+						branchColor.Printf("  Branch: %s\n", branch)
+					}
 				}
 
 				// Get git status
@@ -110,67 +188,98 @@ func newStatusCmd() *cobra.Command {
 
 				if isDirty {
 					dirtyRepos++
-					dirtyColor.Println("  Status: Changes detected")
+					repoStatus.IsDirty = true
 
 					// Get list of modified files
 					modified, staged, untracked, err := getChangedFiles(repoPath)
 					if err == nil {
-						fmt.Println()
+						repoStatus.Modified = modified
+						repoStatus.Staged = staged
+						repoStatus.Untracked = untracked
 
-						if len(staged) > 0 {
-							fmt.Println("  Changes to be committed:")
-							for _, file := range staged {
-								stagedFileColor.Printf("    %s\n", file)
-							}
+						if statusFormat == "text" {
+							dirtyColor.Println("  Status: Changes detected")
 							fmt.Println()
-						}
 
-						if len(modified) > 0 {
-							fmt.Println("  Changes not staged for commit:")
-							for _, file := range modified {
-								changedFileColor.Printf("    %s\n", file)
+							if len(staged) > 0 {
+								fmt.Println("  Changes to be committed:")
+								for _, file := range staged {
+									stagedFileColor.Printf("    %s\n", file)
+								}
+								fmt.Println()
 							}
-							fmt.Println()
-						}
 
-						if len(untracked) > 0 {
-							fmt.Println("  Untracked files:")
-							for _, file := range untracked {
-								untrackedFileColor.Printf("    %s\n", file)
+							if len(modified) > 0 {
+								fmt.Println("  Changes not staged for commit:")
+								for _, file := range modified {
+									changedFileColor.Printf("    %s\n", file)
+								}
+								fmt.Println()
 							}
-							fmt.Println()
+
+							if len(untracked) > 0 {
+								fmt.Println("  Untracked files:")
+								for _, file := range untracked {
+									untrackedFileColor.Printf("    %s\n", file)
+								}
+								fmt.Println()
+							}
 						}
-					} else {
+					} else if statusFormat == "text" {
 						// Fallback to formatted git status output
 						fmt.Println()
 						fmt.Print(formatGitStatus(status))
 					}
 				} else {
-					cleanColor.Println("  Status: Clean")
+					repoStatus.IsDirty = false
+					if statusFormat == "text" {
+						cleanColor.Println("  Status: Clean")
+					}
 				}
 
-				fmt.Println(strings.Repeat("─", 60))
+				statusSummary.Repositories = append(statusSummary.Repositories, repoStatus)
+
+				if statusFormat == "text" {
+					fmt.Println(strings.Repeat("─", 60))
+				}
 			}
 
-			// Print summary
-			titleColor.Println("\n📊 SUMMARY")
-			fmt.Printf("Total repositories: %d\n", totalRepos)
-			fmt.Printf("Existing repositories: %d\n", existingRepos)
+			// Update summary counts
+			statusSummary.ExistingRepos = existingRepos
+			statusSummary.MissingRepos = missingRepos
+			statusSummary.DirtyRepos = dirtyRepos
 
-			if missingRepos > 0 {
-				missingColor.Printf("Not cloned repositories: %d\n", missingRepos)
-			}
+			if statusFormat == "json" {
+				// Output JSON
+				jsonData, err := json.MarshalIndent(statusSummary, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal JSON: %w", err)
+				}
+				fmt.Println(string(jsonData))
+			} else {
+				// Print text summary
+				titleColor.Println("\n📊 SUMMARY")
+				fmt.Printf("Total repositories: %d\n", totalRepos)
+				fmt.Printf("Existing repositories: %d\n", existingRepos)
 
-			if dirtyRepos > 0 {
-				dirtyColor.Printf("Repositories with changes: %d\n", dirtyRepos)
-			} else if existingRepos > 0 {
-				cleanColor.Println("All existing repositories are clean ✓")
+				if missingRepos > 0 {
+					missingColor.Printf("Not cloned repositories: %d\n", missingRepos)
+				}
+
+				if dirtyRepos > 0 {
+					dirtyColor.Printf("Repositories with changes: %d\n", dirtyRepos)
+				} else if existingRepos > 0 {
+					cleanColor.Println("All existing repositories are clean ✓")
+				}
+				fmt.Println()
 			}
-			fmt.Println()
 
 			return nil
 		},
 	}
+
+	cmd.Flags().StringVar(&statusFormat, "format", "text", "Output format (text, json)")
+	cmd.Flags().StringSliceVar(&statusRepos, "repos", []string{}, "Only show status for specified repositories (by ID or name)")
 
 	return cmd
 }
