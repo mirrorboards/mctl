@@ -20,20 +20,6 @@ operations across multiple codebases while maintaining comprehensive metadata an
 
 	// Add all subcommands
 	cmd.AddCommand(newVersionCmd(version))
-	cmd.AddCommand(newInitCmd())
-	cmd.AddCommand(newAddCmd())
-	cmd.AddCommand(newRemoveCmd())
-	cmd.AddCommand(newListCmd())
-	cmd.AddCommand(newStatusCmd())
-	cmd.AddCommand(newSyncCmd())
-	cmd.AddCommand(newBranchCmd())
-	cmd.AddCommand(newSaveCmd())
-	cmd.AddCommand(newLoadCmd())
-	cmd.AddCommand(newSnapshotsCmd())
-	cmd.AddCommand(newClearCmd())
-	cmd.AddCommand(newConfigCmd())
-	cmd.AddCommand(newLogsCmd())
-	cmd.AddCommand(newManCmd())
 
 	return cmd
 }
