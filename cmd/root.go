@@ -9,13 +9,29 @@ import (
 func newRootCmd(version string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mctl",
-		Short: "mctl - git repositories mesh management",
+		Short: "mctl - Multi-Repository Control System",
+		Long: `MCTL provides secure, unified management of code repositories in high-security environments.
+It implements a structured management layer over Git repositories, providing consistent 
+operations across multiple codebases while maintaining comprehensive metadata and audit capabilities.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},
 	}
 
-	cmd.AddCommand(newVersionCmd(version)) // version subcommand
+	// Add all subcommands
+	cmd.AddCommand(newVersionCmd(version))
+	cmd.AddCommand(newInitCmd())
+	cmd.AddCommand(newAddCmd())
+	cmd.AddCommand(newRemoveCmd())
+	cmd.AddCommand(newListCmd())
+	cmd.AddCommand(newStatusCmd())
+	cmd.AddCommand(newSyncCmd())
+	cmd.AddCommand(newBranchCmd())
+	cmd.AddCommand(newSaveCmd())
+	cmd.AddCommand(newClearCmd())
+	cmd.AddCommand(newConfigCmd())
+	cmd.AddCommand(newLogsCmd())
+	cmd.AddCommand(newManCmd())
 
 	return cmd
 }

@@ -1,223 +1,130 @@
-# mirrorboards-mctl
+# MCTL: Multi-Repository Control System
 
-`mctl` is a command-line tool for Git repositories mesh management. It helps you manage multiple related Git repositories by treating them as a unified mesh. Each repository is assigned a unique ID for easy reference and management.
+MCTL provides secure, unified management of code repositories in high-security environments. It implements a structured management layer over Git repositories, providing consistent operations across multiple codebases while maintaining comprehensive metadata and audit capabilities.
+
+## Features
+
+- **Unified Management**: Manage multiple Git repositories with a single command
+- **Consistent Operations**: Apply the same operations across all repositories
+- **Comprehensive Metadata**: Track repository status, history, and relationships
+- **Audit Capabilities**: Log all operations for security and compliance
+- **Secure Operations**: Implement secure, fail-safe command execution
 
 ## Installation
 
+### From Source
+
+```bash
+git clone https://github.com/mirrorboards/mctl.git
+cd mctl
+go build
 ```
+
+### Using Go Install
+
+```bash
 go install github.com/mirrorboards/mctl@latest
 ```
 
-## Usage
+## Quick Start
 
-```
-mctl [command]
-```
+1. Initialize MCTL in your project directory:
 
-## Available Commands
-
-### `init`
-
-Initialize an empty mirror.toml file in the current directory.
-
-```
+```bash
 mctl init
 ```
 
-### `add [git-url] [path]`
+2. Add repositories to manage:
 
-Add a Git repository to the mirror.toml configuration and clone it to the specified path. Each repository is assigned a unique ID.
-
-```
-mctl add https://github.com/example/repo.git [path]
-```
-
-**Options:**
-- `--path`, `-p` string: Path where to clone the repository (default ".")
-- `--name`, `-n` string: Custom name for the repository (defaults to repo name)
-- `--flat`: Clone directly into the path instead of creating a subdirectory
-
-### `remove [id|name]`
-
-Remove a repository from the mirror.toml configuration by ID or name.
-
-```
-mctl remove repo-id
+```bash
+mctl add git@github.com:example/repo1.git
+mctl add git@github.com:example/repo2.git
 ```
 
-**Options:**
-- `--delete`: Delete repository files in addition to removing from configuration
+3. Check the status of all repositories:
 
-### `sync`
-
-Clone all repositories defined in mirror.toml that haven't been cloned yet. Optionally sync with a remote configuration.
-
-```
-mctl sync
-```
-
-**Options:**
-- `--remote` string: Remote configuration to sync with
-- `--merge-strategy` string: Merge strategy for remote sync (remote-wins, local-wins, union) (default "union")
-- `--repos` strings: Only sync specified repositories (by ID or name)
-
-### `status`
-
-Run git status on all repositories defined in mirror.toml and display the results in a colorful, elegant way. Shows repository IDs for easy reference.
-
-```
+```bash
 mctl status
 ```
 
-**Options:**
-- `--format` string: Output format (text, json) (default "text")
-- `--repos` strings: Only show status for specified repositories (by ID or name)
+4. Synchronize all repositories with their remotes:
 
-### `branch [branch-name]`
-
-Switch all repositories to a specific branch. Optionally create the branch if it doesn't exist and pull latest changes.
-
-```
-mctl branch main
+```bash
+mctl sync
 ```
 
-**Options:**
-- `--create`: Create the branch if it doesn't exist
-- `--pull`: Pull latest changes after switching branch
-- `--repos` strings: Only switch specified repositories (by ID or name)
+5. Create a branch across all repositories:
 
-### `save [commit-message]`
-
-Add, commit, and push changes to repositories. 
-
-```
-mctl save "Your commit message"
+```bash
+mctl branch create feature-branch
 ```
 
-**Options:**
-- `--all`, `-a`: Save all repositories even if they have no changes
+6. Commit and push changes across all repositories:
 
-### `remote`
-
-Manage remote configuration sources for synchronizing mirror.toml files across repositories.
-
-```
-mctl remote [command]
+```bash
+mctl save "Implement new feature"
 ```
 
-**Subcommands:**
-- `add [name] [url]`: Add a remote configuration source
-- `list`: List remote configuration sources
-- `remove [name]`: Remove a remote configuration source
-- `pull [name]`: Pull and merge configuration from a remote source
-- `push [name]`: Push local configuration to a remote source
+## Command Reference
 
-### `clear`
+### Core Commands
 
-Remove all directories created by mctl based on mirror.toml, but keep the configuration.
+- `mctl init`: Initialize a new MCTL configuration environment
+- `mctl add`: Add a Git repository to MCTL management
+- `mctl remove`: Remove a repository from MCTL management and delete its files
+- `mctl list`: List repositories under MCTL management
+- `mctl status`: Report status of managed repositories
+- `mctl sync`: Update repositories to match remote state
+- `mctl branch`: Manage Git branches across repositories
+- `mctl save`: Commit and push changes across repositories
+- `mctl clear`: Remove repository directories while preserving configuration
+- `mctl config`: Manage MCTL configuration
+- `mctl logs`: Display MCTL logs
 
-```
-mctl clear
-```
+### Additional Commands
 
-### `version`
-
-Display the current version of mctl.
-
-```
-mctl version
-```
+- `mctl version`: Display MCTL version information
+- `mctl help`: Display help information
 
 ## Configuration
 
-The `mirror.toml` file contains the configuration for your repository mesh. It is created automatically when you run `mctl init`.
+MCTL uses a TOML configuration file located at `.mirror/mirror.toml` in the base directory. The configuration file contains global settings and repository definitions.
 
-Each repository in the configuration has:
-- A unique ID for easy reference
-- URL, path, and optional name
-- Optional branch and tags for organization
+Example configuration:
 
-Remote configuration sources can be defined to synchronize configurations across different machines or teams.
+```toml
+# Global configuration parameters
+[global]
+default_branch = "main"
+parallel_operations = 4
+default_remote = "origin"
 
-## Example Workflows
+# Repository definitions
+[[repositories]]
+id = "a1b2c3d4e5"
+name = "secure-comms"
+path = "repositories/secure-comms"
+url = "git@secure.gov:systems/secure-comms.git"
+branch = "main"
+```
 
-### Basic Workflow
+## Directory Structure
 
-1. Initialize a new configuration:
-   ```
-   mctl init
-   ```
-
-2. Add repositories to your mesh:
-   ```
-   mctl add https://github.com/org/repo1.git ./packages/repo1
-   mctl add https://github.com/org/repo2.git ./packages/repo2
-   ```
-
-3. Check the status of all repositories:
-   ```
-   mctl status
-   ```
-
-4. Make changes across repositories and save them with a single command:
-   ```
-   mctl save "Update all repositories with new feature"
-   ```
-
-5. Later, sync all repositories to ensure they're up to date:
-   ```
-   mctl sync
-   ```
-
-6. If needed, clear all repositories while keeping the configuration:
-   ```
-   mctl clear
-   ```
-
-### Remote Configuration Workflow
-
-1. Add a remote configuration source:
-   ```
-   mctl remote add github https://raw.githubusercontent.com/mirrorboards/mirrorboards/refs/heads/main/mirror.toml
-   ```
-
-2. Sync with the remote configuration:
-   ```
-   mctl sync --remote github
-   ```
-
-3. Pull updates from the remote configuration:
-   ```
-   mctl remote pull github
-   ```
-
-4. Push your local configuration to a remote repository:
-   ```
-   mctl remote push github --message "Update configuration"
-   ```
-
-### Branch Management Workflow
-
-1. Switch all repositories to a specific branch:
-   ```
-   mctl branch feature-branch
-   ```
-
-2. Create a new branch in all repositories:
-   ```
-   mctl branch new-feature --create
-   ```
-
-3. Switch to main branch and pull latest changes:
-   ```
-   mctl branch main --pull
-   ```
-
-4. Switch branch only for specific repositories:
-   ```
-   mctl branch hotfix --repos repo1-id repo2-id
-   ```
+```
+$BASE_DIRECTORY/
+├── .mirror/                      # Configuration directory
+│   ├── mirror.toml               # Primary configuration
+│   ├── metadata/                 # Repository metadata
+│   │   └── {id}.json             # Individual repository data
+│   ├── logs/                     # Operation logs
+│   │   ├── operations.log        # Command execution log
+│   │   └── audit.log             # Security audit log
+│   └── cache/                    # Performance cache
+│       └── status/               # Repository status cache
+├── {repository-name}/            # Individual repository
+└── {repository-name}/            # Individual repository
+```
 
 ## License
 
-[LICENSE]
+This project is licensed under the MIT License - see the LICENSE file for details.
