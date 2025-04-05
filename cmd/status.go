@@ -19,6 +19,7 @@ func newStatusCmd() *cobra.Command {
 		format        string
 		showUntracked bool
 		verify        bool
+		checkRemote   bool
 	)
 
 	cmd := &cobra.Command{
@@ -28,16 +29,20 @@ func newStatusCmd() *cobra.Command {
 
 This command displays the status of repositories managed by MCTL.
 It shows information about the current branch, working directory state,
-relationship to remote, and more.
+and local changes by default.
+
+Use the --check-remote flag to also check the relationship to remote repositories,
+which may take longer but provides more comprehensive status information.
 
 Examples:
   mctl status
   mctl status --repos=secure-comms,authentication
   mctl status --format=json
   mctl status --show-untracked
-  mctl status --verify`,
+  mctl status --verify
+  mctl status --check-remote`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStatus(repos, format, showUntracked, verify)
+			return runStatus(repos, format, showUntracked, verify, checkRemote)
 		},
 	}
 
@@ -46,11 +51,12 @@ Examples:
 	cmd.Flags().StringVar(&format, "format", "detailed", "Output format (detailed, summary, json)")
 	cmd.Flags().BoolVar(&showUntracked, "show-untracked", false, "Include information about untracked files")
 	cmd.Flags().BoolVar(&verify, "verify", false, "Perform integrity verification during status check")
+	cmd.Flags().BoolVar(&checkRemote, "check-remote", false, "Check relationship with remote repositories")
 
 	return cmd
 }
 
-func runStatus(repos, format string, showUntracked, verify bool) error {
+func runStatus(repos, format string, showUntracked, verify, checkRemote bool) error {
 	// Get current directory
 	currentDir, err := os.Getwd()
 	if err != nil {
@@ -88,7 +94,7 @@ func runStatus(repos, format string, showUntracked, verify bool) error {
 
 	// Update status for each repository
 	for _, repo := range repositories {
-		if err := repo.UpdateStatus(); err != nil {
+		if err := repo.UpdateStatus(checkRemote); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: Failed to update status for %s: %v\n", repo.Config.Name, err)
 		}
 	}
@@ -96,11 +102,11 @@ func runStatus(repos, format string, showUntracked, verify bool) error {
 	// Display status in the specified format
 	switch format {
 	case "detailed":
-		displayDetailedStatus(repositories, showUntracked, verify)
+		displayDetailedStatus(repositories, showUntracked, verify, checkRemote)
 	case "summary":
-		displaySummaryStatus(repositories, showUntracked, verify)
+		displaySummaryStatus(repositories, showUntracked, verify, checkRemote)
 	case "json":
-		displayJSONStatus(repositories, showUntracked, verify)
+		displayJSONStatus(repositories, showUntracked, verify, checkRemote)
 	default:
 		return errors.New(errors.ErrInvalidArgument, "Invalid format specification")
 	}
@@ -108,7 +114,7 @@ func runStatus(repos, format string, showUntracked, verify bool) error {
 	return nil
 }
 
-func displayDetailedStatus(repos []*repository.Repository, showUntracked, verify bool) {
+func displayDetailedStatus(repos []*repository.Repository, showUntracked, verify, checkRemote bool) {
 	for _, repo := range repos {
 		fmt.Printf("Repository: %s (%s)\n", repo.Config.Name, repo.Config.ID)
 		fmt.Printf("  Path: %s\n", repo.FullPath())
@@ -129,10 +135,12 @@ func displayDetailedStatus(repos []*repository.Repository, showUntracked, verify
 			}
 
 			// Check relationship with remote
-			ahead, behind, err := repo.GetRemoteStatus()
-			if err == nil {
-				fmt.Printf("  Ahead: %d commits\n", ahead)
-				fmt.Printf("  Behind: %d commits\n", behind)
+			if checkRemote {
+				ahead, behind, err := repo.GetRemoteStatus()
+				if err == nil {
+					fmt.Printf("  Ahead: %d commits\n", ahead)
+					fmt.Printf("  Behind: %d commits\n", behind)
+				}
 			}
 
 			// Show last sync time
@@ -147,7 +155,7 @@ func displayDetailedStatus(repos []*repository.Repository, showUntracked, verify
 	}
 }
 
-func displaySummaryStatus(repos []*repository.Repository, showUntracked, verify bool) {
+func displaySummaryStatus(repos []*repository.Repository, showUntracked, verify, checkRemote bool) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	defer w.Flush()
 
@@ -157,7 +165,7 @@ func displaySummaryStatus(repos []*repository.Repository, showUntracked, verify 
 	// Print repositories
 	for _, repo := range repos {
 		ahead, behind := 0, 0
-		if repo.Metadata.Status.Current != repository.StatusUnknown {
+		if checkRemote && repo.Metadata.Status.Current != repository.StatusUnknown {
 			var err error
 			ahead, behind, err = repo.GetRemoteStatus()
 			if err != nil {
@@ -181,7 +189,7 @@ func displaySummaryStatus(repos []*repository.Repository, showUntracked, verify 
 	}
 }
 
-func displayJSONStatus(repos []*repository.Repository, showUntracked, verify bool) {
+func displayJSONStatus(repos []*repository.Repository, showUntracked, verify, checkRemote bool) {
 	type jsonStatus struct {
 		ID         string `json:"id"`
 		Name       string `json:"name"`
@@ -214,10 +222,12 @@ func displayJSONStatus(repos []*repository.Repository, showUntracked, verify boo
 			}
 
 			// Check relationship with remote
-			ahead, behind, err := repo.GetRemoteStatus()
-			if err == nil {
-				status.Ahead = ahead
-				status.Behind = behind
+			if checkRemote {
+				ahead, behind, err := repo.GetRemoteStatus()
+				if err == nil {
+					status.Ahead = ahead
+					status.Behind = behind
+				}
 			}
 
 			// Show last sync time

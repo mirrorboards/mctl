@@ -158,11 +158,25 @@ func (r *Repository) LoadMetadata() error {
 }
 
 // UpdateStatus updates the repository status
-func (r *Repository) UpdateStatus() error {
+func (r *Repository) UpdateStatus(checkRemote ...bool) error {
+	// Check if we should check remote status
+	shouldCheckRemote := false
+	if len(checkRemote) > 0 {
+		shouldCheckRemote = checkRemote[0]
+	}
 	// Check if repository exists
 	if _, err := os.Stat(r.FullPath()); os.IsNotExist(err) {
 		r.Metadata.Status.Current = StatusUnknown
 		return nil
+	}
+
+	// Check if repository is empty (no commits yet)
+	cmd := exec.Command("git", "-C", r.FullPath(), "rev-parse", "--verify", "HEAD")
+	if err := cmd.Run(); err != nil {
+		// Repository is empty (no commits yet)
+		r.Metadata.Status.Current = StatusClean
+		r.Metadata.Status.Branch = "main" // Default branch for empty repos
+		return r.SaveMetadata()
 	}
 
 	// Get current branch
@@ -178,21 +192,25 @@ func (r *Repository) UpdateStatus() error {
 		return err
 	}
 
-	// Check remote status
+	// Set status based on local changes
 	if hasChanges {
 		r.Metadata.Status.Current = StatusModified
 	} else {
+		r.Metadata.Status.Current = StatusClean
+	}
+
+	// Check remote status if requested
+	if shouldCheckRemote && !hasChanges {
 		// Fetch from remote
 		if err := r.Fetch(); err != nil {
 			// If fetch fails, we can still report local status
-			r.Metadata.Status.Current = StatusClean
-			return nil
+			return r.SaveMetadata()
 		}
 
 		// Check relationship with remote
 		ahead, behind, err := r.GetRemoteStatus()
 		if err != nil {
-			return err
+			return r.SaveMetadata()
 		}
 
 		if ahead > 0 && behind > 0 {
@@ -201,8 +219,6 @@ func (r *Repository) UpdateStatus() error {
 			r.Metadata.Status.Current = StatusAhead
 		} else if behind > 0 {
 			r.Metadata.Status.Current = StatusBehind
-		} else {
-			r.Metadata.Status.Current = StatusClean
 		}
 	}
 
@@ -289,6 +305,15 @@ func (r *Repository) GetRemoteStatus() (int, int, error) {
 
 // Sync synchronizes the repository with the remote
 func (r *Repository) Sync() error {
+	// Check if repository is empty (no commits yet)
+	cmd := exec.Command("git", "-C", r.FullPath(), "rev-parse", "--verify", "HEAD")
+	if err := cmd.Run(); err != nil {
+		// Repository is empty, nothing to sync
+		r.Metadata.Status.Current = StatusClean
+		r.Metadata.Status.Branch = "main" // Default branch for empty repos
+		return r.SaveMetadata()
+	}
+
 	// Fetch from remote
 	if err := r.Fetch(); err != nil {
 		return err
@@ -310,7 +335,7 @@ func (r *Repository) Sync() error {
 	}
 
 	// Pull changes
-	cmd := exec.Command(
+	cmd = exec.Command(
 		"git", "-C", r.FullPath(),
 		"pull", "origin", branch,
 	)
