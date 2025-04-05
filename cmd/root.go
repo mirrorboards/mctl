@@ -28,6 +28,8 @@ operations across multiple codebases while maintaining comprehensive metadata an
 	cmd.AddCommand(newSyncCmd())
 	cmd.AddCommand(newBranchCmd())
 	cmd.AddCommand(newSaveCmd())
+	cmd.AddCommand(newLoadCmd())
+	cmd.AddCommand(newSnapshotsCmd())
 	cmd.AddCommand(newClearCmd())
 	cmd.AddCommand(newConfigCmd())
 	cmd.AddCommand(newLogsCmd())

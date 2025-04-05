@@ -416,6 +416,26 @@ func (r *Repository) Push() error {
 	return r.UpdateStatus()
 }
 
+// GetCommitHash gets the current commit hash for a repository
+func (r *Repository) GetCommitHash() (string, error) {
+	cmd := exec.Command("git", "-C", r.FullPath(), "rev-parse", "HEAD")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("error getting commit hash: %w", err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+// ResetToCommit resets to a specific commit hash
+func (r *Repository) ResetToCommit(commitHash string) error {
+	cmd := exec.Command("git", "-C", r.FullPath(), "reset", "--hard", commitHash)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error resetting to commit: %w\nOutput: %s", err, output)
+	}
+	return nil
+}
+
 // GenerateID generates a unique repository identifier
 func GenerateID(name, url, branch, path string) string {
 	// Normalize inputs
