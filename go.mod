@@ -7,7 +7,7 @@ toolchain go1.24.2
 require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/daixiang0/gci v0.13.4
-	github.com/fatih/color v1.17.0
+	github.com/fatih/color v1.18.0
 	github.com/go-critic/go-critic v0.11.4
 	github.com/golangci/golangci-lint v1.59.1
 	github.com/gotesttools/gotestfmt/v2 v2.5.0
@@ -191,7 +191,7 @@ require (
 	golang.org/x/exp/typeparams v0.0.0-20240314144324-c7f7c6466f7f // indirect
 	golang.org/x/mod v0.18.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.21.0 // indirect
+	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/text v0.15.0 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
